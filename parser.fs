@@ -10,7 +10,7 @@ type LispVal =
   | Atom of string
   | List of LispVal list
   | DottedList of LispVal list * LispVal
-  | Number of int64
+  | Integer of int64
   | String of string
   | Bool of bool
 
@@ -42,11 +42,23 @@ let parseAtom : Parser<LispVal> =
 
 //TODO: Support all scheme number literals, not just ints
 //      complex, real, rational, integer
-let parseNumber : Parser<LispVal> =
-  pint64 |>> Number
+let parseInteger : Parser<LispVal> =
+  pint64 |>> Integer
 
 let parseExpr : Parser<LispVal> =
-  parseAtom <|> parseString <|> parseNumber
+  parseAtom <|> parseString <|> parseInteger
+
+let parseList : Parser<LispVal> =
+  sepBy parseExpr spaces |>> List
+
+//tricky
+//let parseDottedList : Parser<LispVal> =
+//  pipe2 (parseExpr .>> spaces) (char'.'
+
+let parseQuoted : Parser<LispVal> =
+  (pchar '\'' >>. parseExpr) |>> (fun x -> List [(Atom "quote"); x])
+
+// gotta figure out how to add list, dottedlist and quoted to parseExpr when they haven't been defined yet and rely on it....
 
 // for testing
 let test p str =
