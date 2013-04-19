@@ -1,4 +1,4 @@
-module scheve.Parser
+module Scheve.Parser
 
 //#I "FParsec.0.9.2.0/lib/net40"
 //#r "FParsec.dll"
@@ -26,6 +26,8 @@ let unescape c =
     | 't' -> '\t'
     | c   -> c
 
+let parseExpr, parseExprRef = createParserForwardedToRef<LispVal, unit>()
+
 let normalChar = noneOf "\"\\"
 
 let escapedChar = pstring "\\" >>. (anyOf "\\nrt\"" |>> unescape)
@@ -40,25 +42,32 @@ let parseAtom : Parser<LispVal> =
         (manyChars (asciiLetter <|> digit <|> symbol))
         (fun first rest -> Atom (first.ToString() + rest))
 
-//TODO: Support all scheme number literals, not just ints
+//TODO: Full scheme numeric tower
 //      complex, real, rational, integer
 let parseInteger : Parser<LispVal> =
   pint64 |>> Integer
 
-let parseExpr : Parser<LispVal> =
-  parseAtom <|> parseString <|> parseInteger
-
-let parseList : Parser<LispVal> =
-  sepBy parseExpr spaces |>> List
-
-//tricky
-//let parseDottedList : Parser<LispVal> =
-//  pipe2 (parseExpr .>> spaces) (char'.'
-
 let parseQuoted : Parser<LispVal> =
   (pchar '\'' >>. parseExpr) |>> (fun x -> List [(Atom "quote"); x])
 
-// gotta figure out how to add list, dottedlist and quoted to parseExpr when they haven't been defined yet and rely on it....
+let parseProperList : Parser<LispVal> =
+  many (parseExpr .>> spaces) |>> List
+
+let parseDottedList : Parser<LispVal> =
+  pipe2 (many (parseExpr .>> spaces))
+        ((pchar '.') >>. spaces >>. parseExpr)
+        (fun init last -> DottedList (init, last))
+
+let parseList : Parser<LispVal> =
+  between (pchar '(')
+          (pchar ')')
+          (attempt parseDottedList <|> parseProperList)
+
+do parseExprRef := choice [parseAtom;
+                           parseString;
+                           parseInteger;
+                           parseQuoted;
+                           parseList]
 
 // for testing
 let test p str =
