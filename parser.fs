@@ -1,5 +1,3 @@
-// For now, the whole thing is going in here, will break out later....
-
 module Scheve.Parser
 
 //#I "FParsec.0.9.2.0/lib/net40"
@@ -28,6 +26,30 @@ type LispError =
 type MaybeLispVal =
   | LispVal of LispVal
   | LispError of LispError
+
+exception NotALispVal
+exception NotALispError
+exception UncheckedType
+
+let isLispVal x =
+  match x with
+    | LispVal _ -> true
+    | _         -> false
+
+let isLispError x =
+  match x with
+    | LispError _ -> true
+    | _           -> false
+
+let getLispVal x =
+  match x with
+    | LispVal x -> x
+    | _         -> raise NotALispVal
+
+let getLispError x =
+  match x with
+    | LispError x -> x
+    | _           -> raise NotALispError
 
 // Parsing
 type Parser<'t> = Parser<'t, unit>
@@ -59,8 +81,7 @@ let parseAtom : Parser<LispVal> =
 
 let parseBool : Parser<LispVal> =
   (pstring "#f" |>> (fun x -> Bool false)) <|>
-  (pstring "#t" |>> (fun x -> Bool true))
-  
+  (pstring "#t" |>> (fun x -> Bool true))  
 
 //TODO: Full scheme numeric tower
 //      complex, real, rational, integer
@@ -107,6 +128,7 @@ let rec showVal value =
     | List l -> "(" + showList l + ")"
     | DottedList (init,last) -> "(" + showList init + " . " + showVal last + ")"
 
+//TODO
 let showErr error = "error"
 
 // Primitives
@@ -115,12 +137,18 @@ let showErr error = "error"
 let unpackInteger i =
   match i with
     | Integer i -> i
-    | _         -> 0
+    | _         -> raise UncheckedType
+
+let isInteger i =
+  match i with
+    | Integer i -> true
+    | _         -> false
 
 let numericOperator fn args =
-  List.reduce fn (List.map unpackInteger args) |> Integer
-
-
+  match List.tryFind (fun x -> not (isInteger x)) args with
+    | Some nonInt -> LispError (TypeMismatch ("wanted int, got", nonInt))
+    | None ->
+      List.reduce fn (List.map unpackInteger args) |> Integer |> LispVal
 
 let primitives = Map [("+", numericOperator (+));
                       ("-", numericOperator (-));
@@ -134,22 +162,8 @@ let primitives = Map [("+", numericOperator (+));
 // Evaluation
 let apply f args =
   match Map.tryFind f primitives with
-    | Some fn -> LispVal (fn args)
-    | None    -> LispVal (Bool false)
-
-// This is obviously not the way to do this....
-let isVal result =
-  match result with
-    | LispVal _ -> true
-    | _         -> false
-
-let isErr result =
-  match result with
-    | LispError _ -> true
-    | _           -> false
-
-let pullVal (LispVal v) = v
-let pullErr (LispError e) = e
+    | Some fn -> (fn args)
+    | None    -> LispError (NotFunction ("function doesn't exist", f))
 
 let rec eval lisp =
   match lisp with
@@ -159,19 +173,11 @@ let rec eval lisp =
     | Bool _ as value -> LispVal value
     | List [Atom "quote"; value] -> LispVal value
     | List (Atom func :: args) ->
-
-      // There has to be a better way to actually use the type system here
-      let results = (List.map eval args)
-
-      if List.forall isVal results then
-        apply func (List.map pullVal results)
-      else
-        (List.find isErr results)
-
-//eval (List (Atom func : args)) = apply func $ map eval args
-
-//apply :: String -> [LispVal] -> LispVal
-//apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+      let results = (List.map eval args) in
+        if List.forall isLispVal results then
+          apply func (List.map getLispVal results)
+        else
+          (List.find isLispError results)
 
 // for testing
 let test p str =
@@ -193,4 +199,4 @@ let repl str =
       match (eval result) with
         | LispVal v   -> printfn "%s" (showVal v)
         | LispError e -> printfn "%s" (showErr e)
-        
+
