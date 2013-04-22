@@ -210,7 +210,11 @@ let primitives = Map [("+", numericOperator (+));
                       ("string>?", strBoolBinOp (>));
                       ("string<=?", strBoolBinOp (<=));
                       ("string>=?", strBoolBinOp (>=));
+                      ("car", car);
+                      ("cdr", cdr);
+                      ("cons", cons);
                       ]
+
 // Evaluation
 let apply f args =
   match Map.tryFind f primitives with
