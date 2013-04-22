@@ -197,20 +197,20 @@ let primitives = Map [("+", numericOperator (+));
                       ("mod", numericOperator (%));
                       //("quotient", numericOperator quot);
                       //("remainder", numericOperator rem);                       
-                       ("=", numBoolBinOp (=));
-                       ("<", numBoolBinOp (<));
-                       (">", numBoolBinOp (>));
-                       ("/=", numBoolBinOp (<>));
-                       (">=", numBoolBinOp (>=));
-                       ("<=", numBoolBinOp (<=));
-                       ("&&", boolBoolBinOp (&&));
-                       ("||", boolBoolBinOp (||));
-                       ("string=?", strBoolBinOp (=));
-                       ("string<?", strBoolBinOp (<));
-                       ("string>?", strBoolBinOp (>));
-                       ("string<=?", strBoolBinOp (<=));
-                       ("string>=?", strBoolBinOp (>=));
-                       ]
+                      ("=", numBoolBinOp (=));
+                      ("<", numBoolBinOp (<));
+                      (">", numBoolBinOp (>));
+                      ("/=", numBoolBinOp (<>));
+                      (">=", numBoolBinOp (>=));
+                      ("<=", numBoolBinOp (<=));
+                      ("&&", boolBoolBinOp (&&));
+                      ("||", boolBoolBinOp (||));
+                      ("string=?", strBoolBinOp (=));
+                      ("string<?", strBoolBinOp (<));
+                      ("string>?", strBoolBinOp (>));
+                      ("string<=?", strBoolBinOp (<=));
+                      ("string>=?", strBoolBinOp (>=));
+                      ]
 // Evaluation
 let apply f args =
   match Map.tryFind f primitives with
@@ -224,6 +224,11 @@ let rec eval lisp =
     | Integer _ as value -> LispVal value
     | Bool _ as value -> LispVal value
     | List [Atom "quote"; value] -> LispVal value
+    | List [Atom "if"; pred; conseq; alt] ->
+      match (eval pred) with
+        | LispError _ as e -> e
+        | LispVal (Bool false) -> eval alt
+        | _                    -> eval conseq
     | List (Atom func :: args) ->
       let results = (List.map eval args) in
         if List.forall isLispVal results then
