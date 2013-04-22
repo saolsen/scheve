@@ -15,13 +15,14 @@ type LispVal =
     | DottedList of LispVal list * LispVal
 
 type LispError =
-  | NumArgs of int * LispVal list
   | TypeMismatch of string * LispVal
-//  | Parser /put in whatever the parser error type is
-  | BadSpecialForm of string * LispVal
-  | NotFunction of string * string
-  | UnboundVar of string * string
-  | Default of string
+  | ParseError of string
+  | NotFunction of string
+  | NotImplemented of string
+  | NumArgs of int * int
+  //| BadSpecialForm of string * LispVal
+  //| UnboundVar of string * string
+  //| Default of string
 
 type MaybeLispVal =
   | LispVal of LispVal
@@ -81,7 +82,7 @@ let parseAtom : Parser<LispVal> =
 
 let parseBool : Parser<LispVal> =
   (pstring "#f" |>> (fun x -> Bool false)) <|>
-  (pstring "#t" |>> (fun x -> Bool true))  
+  (pstring "#t" |>> (fun x -> Bool true))
 
 //TODO: Full scheme numeric tower
 //      complex, real, rational, integer
@@ -128,12 +129,19 @@ let rec showVal value =
     | List l -> "(" + showList l + ")"
     | DottedList (init,last) -> "(" + showList init + " . " + showVal last + ")"
 
-//TODO
-let showErr error = "error"
+let showErr error =
+  "Error: " +
+  match error with
+    | TypeMismatch (expected, value) -> "Type Mismatch\n" +
+                                        "Expected: " + expected + "\n" +
+                                        "Got: " + (showVal value)
+    | ParseError error -> "ParseError\n" + error
+    | NotFunction f -> "Value is not a function: " + f
+    | NotImplemented f -> "Function is not implemented: " + f
+    | NumArgs (needed, got) -> "Wrong number of arguments\n" +
+                               "Needed: " + needed.ToString() + " Got: " + got.ToString()
 
 // Primitives
-
-// treats all non integers as 0, should error instead
 let unpackInteger i =
   match i with
     | Integer i -> i
@@ -146,9 +154,24 @@ let isInteger i =
 
 let numericOperator fn args =
   match List.tryFind (fun x -> not (isInteger x)) args with
-    | Some nonInt -> LispError (TypeMismatch ("wanted int, got", nonInt))
+    | Some nonInt -> LispError (TypeMismatch ("Integer", nonInt))
     | None ->
       List.reduce fn (List.map unpackInteger args) |> Integer |> LispVal
+
+let isBool b =
+  match b with
+    | Bool b -> true
+    | _      -> false
+
+let numBoolBinOp fn args =
+  match args with
+    | [Integer a; Integer b] -> (fn a b) |> Bool |> LispVal
+    | [otherA; Integer _] -> LispError (TypeMismatch ("Integer", otherA))
+    | [_; otherB]         -> LispError (TypeMismatch ("Integer", otherB))
+    | x -> NumArgs (2, List.length x) |> LispError
+
+let strBoolBinOp fn args = LispError (NotImplemented "sorry")
+let boolBoolBinOp fn args = LispError (NotImplemented "sorry")
 
 let primitives = Map [("+", numericOperator (+));
                       ("-", numericOperator (-));
@@ -156,14 +179,26 @@ let primitives = Map [("+", numericOperator (+));
                       ("/", numericOperator (/));
                       ("mod", numericOperator (%));
                       //("quotient", numericOperator quot);
-                      //("remainder", numericOperator rem);
+                      //("remainder", numericOperator rem);                       
+                       ("=", numBoolBinOp (=));
+                       ("<", numBoolBinOp (<));
+                       (">", numBoolBinOp (>));
+                       ("/=", numBoolBinOp (<>));
+                       (">=", numBoolBinOp (>=));
+                       ("<=", numBoolBinOp (<=));
+                       // ("&&", boolBoolBinOp (&&));
+                       // ("||", boolBoolBinOp (||));
+                       // ("string=?", strBoolBinOp (==));
+                       // ("string<?", strBoolBinOp (<));
+                       // ("string>?", strBoolBinOp (>));
+                       // ("string<=?", strBoolBinOp (<=));
+                       // ("string>=?", strBoolBinOp (>=));
                        ]
-
 // Evaluation
 let apply f args =
   match Map.tryFind f primitives with
     | Some fn -> (fn args)
-    | None    -> LispError (NotFunction ("function doesn't exist", f))
+    | None    -> LispError (NotFunction f)
 
 let rec eval lisp =
   match lisp with
@@ -194,7 +229,7 @@ let parseAndShow str =
 
 let repl str =
   match run parseExpr str with
-    | Failure(errorMsg,_,_) -> printfn "Failure: %s" errorMsg
+    | Failure(errorMsg,_,_) -> printfn "%s" (showErr (ParseError errorMsg))
     | Success(result,_,_)   ->
       match (eval result) with
         | LispVal v   -> printfn "%s" (showVal v)
