@@ -18,8 +18,8 @@ type LispError =
   | TypeMismatch of string * LispVal
   | ParseError of string
   | NotFunction of string
-  | NotImplemented of string
   | NumArgs of int * int
+  | NotImplemented of string
   //| BadSpecialForm of string * LispVal
   //| UnboundVar of string * string
   //| Default of string
@@ -137,9 +137,9 @@ let showErr error =
                                         "Got: " + (showVal value)
     | ParseError error -> "ParseError\n" + error
     | NotFunction f -> "Value is not a function: " + f
-    | NotImplemented f -> "Function is not implemented: " + f
     | NumArgs (needed, got) -> "Wrong number of arguments\n" +
                                "Needed: " + needed.ToString() + " Got: " + got.ToString()
+    | NotImplemented f -> "Functionality is not implemented: " + f
 
 // Primitives
 let unpackInteger i =
@@ -152,26 +152,43 @@ let isInteger i =
     | Integer i -> true
     | _         -> false
 
+let isBool b =
+  match b with
+    | Bool b -> true
+    | _      -> false
+
+let isString s =
+  match s with
+    | String s -> true
+    | _        -> false
+
+//TODO: factor out the repeated code
 let numericOperator fn args =
   match List.tryFind (fun x -> not (isInteger x)) args with
     | Some nonInt -> LispError (TypeMismatch ("Integer", nonInt))
     | None ->
       List.reduce fn (List.map unpackInteger args) |> Integer |> LispVal
 
-let isBool b =
-  match b with
-    | Bool b -> true
-    | _      -> false
-
 let numBoolBinOp fn args =
   match args with
     | [Integer a; Integer b] -> (fn a b) |> Bool |> LispVal
     | [otherA; Integer _] -> LispError (TypeMismatch ("Integer", otherA))
     | [_; otherB]         -> LispError (TypeMismatch ("Integer", otherB))
-    | x -> NumArgs (2, List.length x) |> LispError
+    | x                   -> NumArgs (2, List.length x) |> LispError
 
-let strBoolBinOp fn args = LispError (NotImplemented "sorry")
-let boolBoolBinOp fn args = LispError (NotImplemented "sorry")
+let strBoolBinOp fn args =
+  match args with
+    | [String a; String b] -> (fn a b) |> Bool |> LispVal
+    | [otherA; String _]   -> LispError (TypeMismatch ("String", otherA))
+    | [_; otherB]          -> LispError (TypeMismatch ("String", otherB))
+    | x                    -> NumArgs (2, List.length x) |> LispError
+    
+let boolBoolBinOp fn args =
+  match args with
+    | [Bool a; Bool b] -> (fn a b) |> Bool |> LispVal
+    | [otherA; Bool _]   -> LispError (TypeMismatch ("Bool", otherA))
+    | [_; otherB]          -> LispError (TypeMismatch ("Bool", otherB))
+    | x                    -> NumArgs (2, List.length x) |> LispError
 
 let primitives = Map [("+", numericOperator (+));
                       ("-", numericOperator (-));
@@ -186,13 +203,13 @@ let primitives = Map [("+", numericOperator (+));
                        ("/=", numBoolBinOp (<>));
                        (">=", numBoolBinOp (>=));
                        ("<=", numBoolBinOp (<=));
-                       // ("&&", boolBoolBinOp (&&));
-                       // ("||", boolBoolBinOp (||));
-                       // ("string=?", strBoolBinOp (==));
-                       // ("string<?", strBoolBinOp (<));
-                       // ("string>?", strBoolBinOp (>));
-                       // ("string<=?", strBoolBinOp (<=));
-                       // ("string>=?", strBoolBinOp (>=));
+                       ("&&", boolBoolBinOp (&&));
+                       ("||", boolBoolBinOp (||));
+                       ("string=?", strBoolBinOp (=));
+                       ("string<?", strBoolBinOp (<));
+                       ("string>?", strBoolBinOp (>));
+                       ("string<=?", strBoolBinOp (<=));
+                       ("string>=?", strBoolBinOp (>=));
                        ]
 // Evaluation
 let apply f args =
@@ -213,6 +230,8 @@ let rec eval lisp =
           apply func (List.map getLispVal results)
         else
           (List.find isLispError results)
+
+    | _ -> NotImplemented "eval of this form" |> LispError
 
 // for testing
 let test p str =
