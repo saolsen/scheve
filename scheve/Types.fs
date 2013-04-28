@@ -2,29 +2,37 @@
 
 open System
 
-type LispVal =
+type Function = {prms: string list;
+                 varargs: string Option;
+                 body: LispVal list;
+                 closure: Map<string,LispVal>;}
+
+and LispVal =
     | Atom of string
     | Integer of int
     | String of string
     | Bool of bool
     | List of LispVal list
     | DottedList of LispVal list * LispVal
-
-type LispError =
+    | PrimitiveFunc of (LispVal list -> MaybeLispVal)
+    | Func of Function
+    
+and LispError =
   | TypeMismatch of string * LispVal
   | ParseError of string
-  | NotFunction of string
+  | NotFunction of LispVal
   | NumArgs of int * int
   | UnboundVar of string
   | NotImplemented of string
 
-type MaybeLispVal =
+and MaybeLispVal =
   | LispVal of LispVal
   | LispError of LispError
 
 exception NotALispVal
 exception NotALispError
 exception UncheckedType
+exception ImpossibleCase
 
 let unpackInteger i =
   match i with
@@ -86,6 +94,15 @@ let rec showVal value =
     | Bool false -> "#f"
     | List l -> "(" + showList l + ")"
     | DottedList (init,last) -> "(" + showList init + " . " + showVal last + ")"
+    | PrimitiveFunc _ -> "<primitive>"
+    | Func {prms = prms;
+            varargs = varargs;
+            body = body;
+            closure = closure;} ->
+      let args = match varargs with
+                   | Some arg -> " . " + arg
+                   | None  -> ""
+      "(lambda (" + (List.reduce (+) prms) + args + ") ...)"
 
 let showErr error =
   "Error: " +
@@ -94,7 +111,7 @@ let showErr error =
                                         "Expected: " + expected + "\n" +
                                         "Got: " + (showVal value)
     | ParseError error -> "ParseError\n" + error
-    | NotFunction f -> "Value is not a function: " + f
+    | NotFunction f -> "Value is not a function: " + (showVal f)
     | NumArgs (needed, got) -> "Wrong number of arguments\n" +
                                "Needed: " + needed.ToString() +
                                "Got: " + got.ToString()
