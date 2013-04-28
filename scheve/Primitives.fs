@@ -103,3 +103,5 @@ let primitives = Map [("+", numericOperator (+));
                       ("eq?", eqv);
                       ("eqv?", eqv);
                       ]
+                      
+let baseEnvironment = Map.map (fun k v -> PrimitiveFunc v) primitives

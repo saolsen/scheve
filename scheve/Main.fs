@@ -6,6 +6,7 @@ open FParsec
 open scheve.Types
 open scheve.Eval
 open scheve.Parser
+open scheve.Primitives
 
 let evalAndPrint env str =
   match run parseExpr str with

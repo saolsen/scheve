@@ -44,6 +44,9 @@
     <Compile Include="Main.fs" />
     <None Include="Testing.fsx" />
     <None Include="packages.config" />
+    <Compile Include="Primitives.fs">
+      <DependentUpon>Eval.fs</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />

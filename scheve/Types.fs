@@ -43,6 +43,16 @@ let unpackBool b =
   match b with
     | Bool b -> b
     | _      -> raise UncheckedType
+    
+let unpackString s =
+  match s with
+    | String s -> s
+    | _        -> raise UncheckedType
+    
+let unpackAtom a =
+  match a with
+    | Atom a -> a
+    | _      -> raise UncheckedType
 
 let isInteger i =
   match i with
@@ -58,6 +68,11 @@ let isString s =
   match s with
     | String s -> true
     | _        -> false
+    
+let isAtom a =
+  match a with
+    | Atom a -> true
+    | _      -> false
 
 let isLispVal x =
   match x with
@@ -99,10 +114,13 @@ let rec showVal value =
             varargs = varargs;
             body = body;
             closure = closure;} ->
+      let prmList = match prms with
+                      | [] -> ""
+                      | x  -> List.reduce (fun x y -> x + " " + y) prms
       let args = match varargs with
                    | Some arg -> " . " + arg
                    | None  -> ""
-      "(lambda (" + (List.reduce (+) prms) + args + ") ...)"
+      "(lambda (" + prmList + args + ") ...)"
 
 let showErr error =
   "Error: " +

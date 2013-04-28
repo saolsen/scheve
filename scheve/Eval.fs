@@ -21,7 +21,16 @@ let defineVar var (env, value) =
   match value with
     | LispError _ -> (env, value)
     | LispVal v -> (Map.add var v env, value)
-
+    
+// think these should be atoms, not strings? maybe?    
+let makeFunc varArgs env prms body =
+  match List.tryFind (fun x -> not (isAtom x)) prms with
+    | Some x -> TypeMismatch ("Atom", x) |> LispError
+    | None -> Func {prms = List.map unpackAtom prms;
+                    varargs= varArgs;
+                    body= body;
+                    closure=env} |> LispVal
+                    
 // Evaluation
 let rec apply f args =
   match f with
@@ -80,6 +89,12 @@ and eval env lisp =
         | _                    -> eval newEnv conseq
     | List [Atom "set!"; Atom var; form] -> setVar var (eval env form)
     | List [Atom "define"; Atom var; form] -> defineVar var (eval env form)
+    | List (Atom "lambda" :: List prms :: body) ->
+      (env, makeFunc None env prms body)
+    | List (Atom "lambda" :: DottedList (prms, Atom varargs) :: body) ->
+      env, (makeFunc (Some varargs) env prms body)
+    | List (Atom "lambda" :: Atom varargs :: body) ->
+      env, (makeFunc (Some varargs) env [] body)
     | List (func :: args) ->
       let (e, evalFunc) = eval env func
       match evalFunc with
@@ -95,4 +110,3 @@ and eval env lisp =
             else
               (newEnv, (List.find isLispError results))                          
     | _ -> (env, (NotImplemented "eval of this form" |> LispError))
-
