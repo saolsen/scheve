@@ -104,29 +104,58 @@ let primitives = Map [("+", numericOperator (+));
                       ("eqv?", eqv);
                       ]
 
-// Evaluation
-let apply f args =
-  match Map.tryFind f primitives with
-    | Some fn -> (fn args)
-    | None    -> LispError (NotFunction f)
+let getVar env id =
+  match Map.tryFind id env with
+    | Some value -> value |> LispVal
+    | None -> UnboundVar id |> LispError
 
-let rec eval lisp =
+let setVar id (env, value) = 
+  if isLispError value then
+    (env, value)
+  else
+    let unwrapped = getLispVal value in
+    if Map.containsKey id env then
+      (Map.add id unwrapped env, value)
+    else
+      (env, LispError (UnboundVar id))
+
+let defineVar var (env, value) =
+  match value with
+    | LispError _ -> (env, value)
+    | LispVal v -> (Map.add var v env, value)
+
+// Evaluation
+let apply env f args =
+  match Map.tryFind f primitives with
+    | Some fn -> (env, (fn args))
+    | None    -> (env, LispError (NotFunction f))
+
+let rec eval env lisp =
   match lisp with
     //need the rest of these or going to get errors.
-    | String _ as value -> LispVal value
-    | Integer _ as value -> LispVal value
-    | Bool _ as value -> LispVal value
-    | List [Atom "quote"; value] -> LispVal value
+    | String _ as value -> (env, LispVal value)
+    | Integer _ as value -> (env, LispVal value)
+    | Bool _ as value -> (env, LispVal value)
+    | Atom id -> (env, getVar env id)
+    | List [Atom "quote"; value] -> (env, LispVal value)
     | List [Atom "if"; pred; conseq; alt] ->
-      match (eval pred) with
-        | LispError _ as e -> e
-        | LispVal (Bool false) -> eval alt
-        | _                    -> eval conseq
+      let (newEnv, result) = (eval env pred)
+      match result with
+        | LispError _ as e -> (newEnv, e)
+        | LispVal (Bool false) -> eval newEnv alt
+        | _                    -> eval newEnv conseq
+    | List [Atom "set!"; Atom var; form] -> setVar var (eval env form)
+    | List [Atom "define"; Atom var; form] -> defineVar var (eval env form)
     | List (Atom func :: args) ->
-      let results = (List.map eval args) in
-        if List.forall isLispVal results then
-          apply func (List.map getLispVal results)
-        else
-          (List.find isLispError results)
+      let evalArgs (currentEnv, evaledArgs) next =
+        let (newEvn, evaled) = (eval currentEnv next) in
+          (newEvn, (List.append evaledArgs [evaled]))
 
-    | _ -> NotImplemented "eval of this form" |> LispError
+      let (newEnv, results) = (List.fold evalArgs (env, []) args) in
+        if List.forall isLispVal results then
+          apply newEnv func (List.map getLispVal results)
+        else
+          (newEnv, (List.find isLispError results))
+          
+    | _ -> (env, (NotImplemented "eval of this form" |> LispError))
+

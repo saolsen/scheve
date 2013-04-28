@@ -15,6 +15,7 @@ type LispError =
   | ParseError of string
   | NotFunction of string
   | NumArgs of int * int
+  | UnboundVar of string
   | NotImplemented of string
 
 type MaybeLispVal =
@@ -97,4 +98,5 @@ let showErr error =
     | NumArgs (needed, got) -> "Wrong number of arguments\n" +
                                "Needed: " + needed.ToString() +
                                "Got: " + got.ToString()
+    | UnboundVar var -> "Unbound Variable: " + var.ToString()
     | NotImplemented f -> "Functionality is not implemented: " + f
