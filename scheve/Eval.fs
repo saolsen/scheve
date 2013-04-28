@@ -21,8 +21,7 @@ let defineVar var (env, value) =
   match value with
     | LispError _ -> (env, value)
     | LispVal v -> (Map.add var v env, value)
-    
-// think these should be atoms, not strings? maybe?    
+      
 let makeFunc varArgs env prms body =
   match List.tryFind (fun x -> not (isAtom x)) prms with
     | Some x -> TypeMismatch ("Atom", x) |> LispError

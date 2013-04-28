@@ -132,6 +132,6 @@ let showErr error =
     | NotFunction f -> "Value is not a function: " + (showVal f)
     | NumArgs (needed, got) -> "Wrong number of arguments\n" +
                                "Needed: " + needed.ToString() +
-                               "Got: " + got.ToString()
+                               " Got: " + got.ToString()
     | UnboundVar var -> "Unbound Variable: " + var.ToString()
     | NotImplemented f -> "Functionality is not implemented: " + f

@@ -38,5 +38,6 @@ let main args =
     | [|filename|] ->
       do printf "Running a scheme file not yet implemented"
       0
-    | _ -> repl Map.empty
+    | _ -> repl baseEnvironment
+     
 
